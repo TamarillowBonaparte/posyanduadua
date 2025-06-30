@@ -13,19 +13,25 @@ class AnakController extends Controller
 {
     /**
      * Mendapatkan daftar anak
-     * 
-     * - Untuk mobile app: mendapatkan anak milik user terautentikasi
-     * - Untuk admin: bisa mendapatkan semua anak atau filter berdasarkan pengguna_id
      */
     public function index(Request $request)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         
         // Log untuk debugging
         \Log::info("=== Get anak data ===");
+        \Log::info("Headers: " . json_encode($request->headers->all()));
         \Log::info("User: " . ($user ? "ID: {$user->id}, NIK: {$user->nik}, Role: {$user->role}" : "Not authenticated"));
         
-        // Default query - untuk daftar semua anak jika admin, atau milik sendiri jika parent
+        // Jika tidak ada user, return error
+        if (!$user) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Tidak dapat mengidentifikasi pengguna'
+            ], 401);
+        }
+        
+        // Default query
         $query = Anak::with('pengguna');
         
         if ($user->role === 'parent') {
@@ -41,23 +47,9 @@ class AnakController extends Controller
         $anakList = $query->get();
         \Log::info("Found {$anakList->count()} children records");
         
-        // Pastikan data pengguna (orangtua) tersedia untuk setiap anak
-        $anakWithParents = $anakList->map(function ($anak) {
-            $data = $anak->toArray();
-            // Jika tidak ada data pengguna tapi ada pengguna_id, coba load manual
-            if ((!isset($data['pengguna']) || $data['pengguna'] === null) && $anak->pengguna_id) {
-                $pengguna = \App\Models\Pengguna::find($anak->pengguna_id);
-                if ($pengguna) {
-                    $data['pengguna'] = $pengguna->toArray();
-                    \Log::info("Manually loaded parent data for child ID {$anak->id}, parent ID {$anak->pengguna_id}");
-                }
-            }
-            return $data;
-        });
-        
         return response()->json([
-            'success' => true,
-            'data' => $anakWithParents
+            'status' => 'success',
+            'data' => $anakList
         ]);
     }
 
@@ -66,12 +58,21 @@ class AnakController extends Controller
      */
     public function store(Request $request)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         
-        // Log untuk debugging
+        // Debug headers dan user
         \Log::info("=== Store anak data ===");
+        \Log::info("Headers: " . json_encode($request->headers->all()));
         \Log::info("User: " . ($user ? "ID: {$user->id}, NIK: {$user->nik}, Role: {$user->role}" : "Not authenticated"));
         \Log::info("Request data:", $request->all());
+        
+        // Jika masih tidak ada user setelah melewati middleware, return error
+        if (!$user) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Tidak dapat mengidentifikasi pengguna'
+            ], 401);
+        }
         
         // Validasi input
         $validator = Validator::make($request->all(), [
@@ -84,9 +85,8 @@ class AnakController extends Controller
         ]);
 
         if ($validator->fails()) {
-            \Log::error("Validation failed: " . json_encode($validator->errors()));
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Validasi gagal',
                 'errors' => $validator->errors()
             ], 422);
@@ -97,16 +97,12 @@ class AnakController extends Controller
             $pengguna_id = null;
             
             if ($user->role === 'parent') {
-                // Jika parent, gunakan ID sendiri
                 $pengguna_id = $user->id;
-                \Log::info("Using authenticated parent ID: {$pengguna_id}");
             } else if ($user->role === 'admin' && $request->has('pengguna_id')) {
-                // Jika admin, gunakan pengguna_id yang diberikan
                 $pengguna_id = $request->pengguna_id;
-                \Log::info("Admin assigning to parent ID: {$pengguna_id}");
-            } else if ($user->role === 'admin' && !$request->has('pengguna_id')) {
-                // Jika admin tidak menentukan pengguna_id, biarkan null (anak tanpa orangtua)
-                \Log::info("Admin creating child without parent");
+            } else if ($request->has('pengguna_id')) {
+                // Fallback: gunakan dari request
+                $pengguna_id = $request->pengguna_id;
             }
             
             $anak = new Anak();
@@ -118,30 +114,18 @@ class AnakController extends Controller
             $anak->usia = $request->usia;
             $anak->save();
             
-            \Log::info("Child data saved successfully. ID: {$anak->id}");
-            
-            // Load data pengguna (orangtua) jika tersedia
+            // Load data pengguna
             $anak->load('pengguna');
             
-            // Jika tidak ada data pengguna tapi ada pengguna_id, coba load manual
-            $responseData = $anak->toArray();
-            if ((!isset($responseData['pengguna']) || $responseData['pengguna'] === null) && $anak->pengguna_id) {
-                $pengguna = \App\Models\Pengguna::find($anak->pengguna_id);
-                if ($pengguna) {
-                    $responseData['pengguna'] = $pengguna->toArray();
-                    \Log::info("Manually loaded parent data for created child");
-                }
-            }
-            
             return response()->json([
-                'success' => true,
+                'status' => 'success',
                 'message' => 'Data anak berhasil disimpan',
-                'data' => $responseData
+                'data' => $anak
             ], 201);
         } catch (\Exception $e) {
-            \Log::error("Error saving child data: {$e->getMessage()}");
+            \Log::error("Error: {$e->getMessage()}");
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Gagal menyimpan data',
                 'error' => $e->getMessage()
             ], 500);
@@ -153,12 +137,26 @@ class AnakController extends Controller
      */
     public function show($id)
     {
-        $user = auth()->user();
+        $user = Auth::user();
+        
+        // Log untuk debugging
+        \Log::info("=== Show anak data ===");
+        \Log::info("User: " . ($user ? "ID: {$user->id}, NIK: {$user->nik}, Role: {$user->role}" : "Not authenticated"));
+        \Log::info("Anak ID: {$id}");
+        
+        // Jika tidak ada user, return error
+        if (!$user) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Tidak dapat mengidentifikasi pengguna'
+            ], 401);
+        }
+        
         $anak = Anak::with('pengguna')->find($id);
         
         if (!$anak) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Data anak tidak ditemukan'
             ], 404);
         }
@@ -166,24 +164,14 @@ class AnakController extends Controller
         // Verifikasi akses
         if ($user->role !== 'admin' && $anak->pengguna_id !== $user->id) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Anda tidak memiliki akses ke data ini'
             ], 403);
         }
         
-        // Pastikan data pengguna (orangtua) tersedia
-        $responseData = $anak->toArray();
-        if ((!isset($responseData['pengguna']) || $responseData['pengguna'] === null) && $anak->pengguna_id) {
-            $pengguna = \App\Models\Pengguna::find($anak->pengguna_id);
-            if ($pengguna) {
-                $responseData['pengguna'] = $pengguna->toArray();
-                \Log::info("Manually loaded parent data for child ID {$anak->id}");
-            }
-        }
-        
         return response()->json([
-            'success' => true,
-            'data' => $responseData
+            'status' => 'success',
+            'data' => $anak
         ]);
     }
 
@@ -192,18 +180,28 @@ class AnakController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $user = auth()->user();
-        $anak = Anak::find($id);
+        $user = Auth::user();
         
         // Log untuk debugging
         \Log::info("=== Update anak data ===");
+        \Log::info("Headers: " . json_encode($request->headers->all()));
         \Log::info("User: " . ($user ? "ID: {$user->id}, NIK: {$user->nik}, Role: {$user->role}" : "Not authenticated"));
         \Log::info("Child ID: {$id}");
         \Log::info("Request data:", $request->all());
         
+        // Jika tidak ada user, return error
+        if (!$user) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Tidak dapat mengidentifikasi pengguna'
+            ], 401);
+        }
+        
+        $anak = Anak::find($id);
+        
         if (!$anak) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Data anak tidak ditemukan'
             ], 404);
         }
@@ -211,7 +209,7 @@ class AnakController extends Controller
         // Verifikasi akses
         if ($user->role !== 'admin' && $anak->pengguna_id !== $user->id) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Anda tidak memiliki akses untuk mengubah data ini'
             ], 403);
         }
@@ -226,7 +224,7 @@ class AnakController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Validasi gagal',
                 'errors' => $validator->errors()
             ], 422);
@@ -245,30 +243,18 @@ class AnakController extends Controller
             $anak->usia = $request->usia;
             $anak->save();
             
-            \Log::info("Child data updated successfully");
-            
-            // Load data pengguna (orangtua) setelah update
+            // Load data pengguna
             $anak->load('pengguna');
             
-            // Pastikan data pengguna (orangtua) tersedia
-            $responseData = $anak->toArray();
-            if ((!isset($responseData['pengguna']) || $responseData['pengguna'] === null) && $anak->pengguna_id) {
-                $pengguna = \App\Models\Pengguna::find($anak->pengguna_id);
-                if ($pengguna) {
-                    $responseData['pengguna'] = $pengguna->toArray();
-                    \Log::info("Manually loaded parent data for updated child");
-                }
-            }
-            
             return response()->json([
-                'success' => true,
+                'status' => 'success',
                 'message' => 'Data anak berhasil diperbarui',
-                'data' => $responseData
+                'data' => $anak
             ]);
         } catch (\Exception $e) {
-            \Log::error("Error updating child data: {$e->getMessage()}");
+            \Log::error("Error: {$e->getMessage()}");
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Gagal memperbarui data',
                 'error' => $e->getMessage()
             ], 500);
@@ -280,12 +266,26 @@ class AnakController extends Controller
      */
     public function destroy($id)
     {
-        $user = auth()->user();
+        $user = Auth::user();
+        
+        // Log untuk debugging
+        \Log::info("=== Delete anak data ===");
+        \Log::info("User: " . ($user ? "ID: {$user->id}, NIK: {$user->nik}, Role: {$user->role}" : "Not authenticated"));
+        \Log::info("Anak ID: {$id}");
+        
+        // Jika tidak ada user, return error
+        if (!$user) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Tidak dapat mengidentifikasi pengguna'
+            ], 401);
+        }
+        
         $anak = Anak::find($id);
         
         if (!$anak) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Data anak tidak ditemukan'
             ], 404);
         }
@@ -293,7 +293,7 @@ class AnakController extends Controller
         // Verifikasi akses
         if ($user->role !== 'admin' && $anak->pengguna_id !== $user->id) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Anda tidak memiliki akses untuk menghapus data ini'
             ], 403);
         }
@@ -302,13 +302,13 @@ class AnakController extends Controller
             $anak->delete();
             
             return response()->json([
-                'success' => true,
+                'status' => 'success',
                 'message' => 'Data anak berhasil dihapus'
             ]);
         } catch (\Exception $e) {
-            \Log::error("Error deleting child data: {$e->getMessage()}");
+            \Log::error("Error: {$e->getMessage()}");
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Gagal menghapus data',
                 'error' => $e->getMessage()
             ], 500);
@@ -320,12 +320,25 @@ class AnakController extends Controller
      */
     public function findByPenggunaNik($nik)
     {
-        $user = auth()->user();
+        $user = Auth::user();
+        
+        // Log untuk debugging
+        \Log::info("=== Find anak by NIK ===");
+        \Log::info("User: " . ($user ? "ID: {$user->id}, NIK: {$user->nik}, Role: {$user->role}" : "Not authenticated"));
+        \Log::info("Requested NIK: {$nik}");
+        
+        // Jika tidak ada user, return error
+        if (!$user) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Tidak dapat mengidentifikasi pengguna'
+            ], 401);
+        }
         
         // Verifikasi akses - hanya admin atau pemilik NIK yang boleh mengakses
         if ($user->role !== 'admin' && $user->nik !== $nik) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Anda tidak memiliki akses ke data ini'
             ], 403);
         }
@@ -335,7 +348,7 @@ class AnakController extends Controller
             
             if (!$pengguna) {
                 return response()->json([
-                    'success' => false,
+                    'status' => 'error',
                     'message' => 'Pengguna dengan NIK tersebut tidak ditemukan'
                 ], 404);
             }
@@ -343,13 +356,13 @@ class AnakController extends Controller
             $anakList = Anak::where('pengguna_id', $pengguna->id)->get();
             
             return response()->json([
-                'success' => true,
+                'status' => 'success',
                 'data' => $anakList
             ]);
         } catch (\Exception $e) {
-            \Log::error("Error finding children by parent NIK: {$e->getMessage()}");
+            \Log::error("Error: {$e->getMessage()}");
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Terjadi kesalahan',
                 'error' => $e->getMessage()
             ], 500);
@@ -361,12 +374,21 @@ class AnakController extends Controller
      */
     public function linkToParent(Request $request)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         
         // Log untuk debugging
         \Log::info("=== Link anak to parent ===");
+        \Log::info("Headers: " . json_encode($request->headers->all()));
         \Log::info("User: " . ($user ? "ID: {$user->id}, NIK: {$user->nik}, Role: {$user->role}" : "Not authenticated"));
         \Log::info("Request data:", $request->all());
+        
+        // Jika tidak ada user, return error
+        if (!$user) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Tidak dapat mengidentifikasi pengguna'
+            ], 401);
+        }
         
         $validator = Validator::make($request->all(), [
             'anak_id' => 'required|exists:anak,id',
@@ -375,7 +397,7 @@ class AnakController extends Controller
         
         if ($validator->fails()) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Validasi gagal',
                 'errors' => $validator->errors()
             ], 422);
@@ -388,7 +410,7 @@ class AnakController extends Controller
             // Verifikasi akses
             if ($user->role !== 'admin') {
                 return response()->json([
-                    'success' => false,
+                    'status' => 'error',
                     'message' => 'Hanya admin yang dapat menautkan data anak'
                 ], 403);
             }
@@ -396,7 +418,7 @@ class AnakController extends Controller
             // Verifikasi pengguna adalah parent
             if ($pengguna->role !== 'parent') {
                 return response()->json([
-                    'success' => false,
+                    'status' => 'error',
                     'message' => 'NIK yang diberikan bukan milik orang tua'
                 ], 400);
             }
@@ -404,10 +426,8 @@ class AnakController extends Controller
             $anak->pengguna_id = $pengguna->id;
             $anak->save();
             
-            \Log::info("Child linked to parent successfully");
-            
             return response()->json([
-                'success' => true,
+                'status' => 'success',
                 'message' => 'Data anak berhasil dikaitkan dengan orang tua',
                 'data' => [
                     'anak' => $anak,
@@ -419,9 +439,9 @@ class AnakController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            \Log::error("Error linking child to parent: {$e->getMessage()}");
+            \Log::error("Error: {$e->getMessage()}");
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Gagal mengaitkan data',
                 'error' => $e->getMessage()
             ], 500);
@@ -430,21 +450,28 @@ class AnakController extends Controller
     
     /**
      * Mendapatkan anak berdasarkan ID pengguna
-     * Endpoint khusus untuk mobile
      */
     public function getAnakByPenggunaId($pengguna_id)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         
         // Log untuk debugging
         \Log::info("=== Get anak by pengguna ID ===");
         \Log::info("User: " . ($user ? "ID: {$user->id}, NIK: {$user->nik}, Role: {$user->role}" : "Not authenticated"));
         \Log::info("Requested pengguna_id: {$pengguna_id}");
         
+        // Jika tidak ada user, return error
+        if (!$user) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Tidak dapat mengidentifikasi pengguna'
+            ], 401);
+        }
+        
         // Verifikasi akses
         if ($user->role !== 'admin' && $user->id != $pengguna_id) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Anda tidak memiliki akses ke data ini'
             ], 403);
         }
@@ -454,16 +481,16 @@ class AnakController extends Controller
             \Log::info("Found {$anakList->count()} children");
             
             return response()->json([
-                'success' => true,
+                'status' => 'success',
                 'data' => $anakList
             ]);
         } catch (\Exception $e) {
-            \Log::error("Error finding children by pengguna ID: {$e->getMessage()}");
+            \Log::error("Error: {$e->getMessage()}");
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Terjadi kesalahan',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
-} 
+}

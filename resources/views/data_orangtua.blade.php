@@ -19,9 +19,6 @@
         <div class="w-full max-w-5xl bg-white/70 backdrop-blur-md rounded-2xl shadow-xl p-8 mx-auto mt-8 border border-white/40">
             <div class="bg-white/60 p-6 rounded-xl border border-white/40">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 my-4">
-                    <div class="flex gap-2">
-                        <a href="#" class="bg-gradient-to-r from-blue-500 to-blue-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Cetak</a>
-                    </div>
                     <form action="{{ route('data_orangtua.index') }}" method="GET" class="flex-grow md:max-w-xs">
                         <div class="flex">
                             <input type="text" name="search" placeholder="Pencarian..." class="border p-3 rounded-l-xl w-full focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" value="{{ $search ?? '' }}">
@@ -62,8 +59,8 @@
                                 <th class="border border-gray-300 p-3 w-16">No</th>
                                 <th class="border border-gray-300 p-3">NIK</th>
                                 <th class="border border-gray-300 p-3">Nama Ibu</th>
-                                <th class="border border-gray-300 p-3">Email</th>
                                 <th class="border border-gray-300 p-3">Nama Anak</th>
+                                <th class="border border-gray-300 p-3">Email</th>
                                 <th class="border border-gray-300 p-3">Usia Anak</th>
                                 <th class="border border-gray-300 p-3">Jenis Kelamin Anak</th>
                                 <th class="border border-gray-300 p-3">No. Telp</th>
@@ -76,8 +73,8 @@
                                     <td class="border border-gray-300 p-3">{{ ($pengguna->currentPage() - 1) * $pengguna->perPage() + $index + 1 }}</td>
                                     <td class="border border-gray-300 p-3">{{ $p->nik }}</td>
                                     <td class="border border-gray-300 p-3">{{ $p->nama }}</td>
-                                    <td class="border border-gray-300 p-3">{{ $p->email ?? '-' }}</td>
                                     <td class="border border-gray-300 p-3">{{ $p->anak->isEmpty() ? '-' : $p->anak->first()->nama_anak }}</td>
+                                    <td class="border border-gray-300 p-3">{{ $p->email ?? '-' }}</td>
                                     <td class="border border-gray-300 p-3">{{ $p->anak->isEmpty() ? '-' : $p->anak->first()->usia }}</td>
                                     <td class="border border-gray-300 p-3">{{ $p->anak->isEmpty() ? '-' : $p->anak->first()->jenis_kelamin }}</td>
                                     <td class="border border-gray-300 p-3">{{ $p->no_telp }}</td>

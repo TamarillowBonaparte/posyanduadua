@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use App\Exports\PerkembanganExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class PerkembanganAnakController extends Controller
 {
@@ -19,8 +21,8 @@ class PerkembanganAnakController extends Controller
         // Ambil semua anak yang memiliki setidaknya satu data perkembangan
         // Muat relasi perkembangan anak terbaru
         $query = Anak::has('perkembanganAnak')->with(['perkembanganAnak' => function($query) {
-            $query->latest('tanggal'); // Ambil yang terbaru berdasarkan tanggal
-        }]);
+            $query->orderBy('tanggal', 'desc')->orderBy('created_at', 'desc'); // Ambil yang terbaru berdasarkan tanggal
+        }, 'pengguna']);
         
         if ($search) {
             $query->where(function($q) use ($search) {
@@ -32,7 +34,7 @@ class PerkembanganAnakController extends Controller
         }
         
         // Dapatkan hasil paginasi dari query Anak
-        $anakPaginator = $query->paginate($perPage);
+        $anakPaginator = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         // Sekarang, proses koleksi Anak di halaman saat ini untuk mendapatkan data perkembangan terbaru
         $perkembanganCollection = collect();
@@ -123,7 +125,7 @@ class PerkembanganAnakController extends Controller
     public function show($id)
     {
         try {
-            $perkembangan = PerkembanganAnak::with('anak')->findOrFail($id);
+            $perkembangan = PerkembanganAnak::with(['anak.pengguna'])->findOrFail($id);
             
             if (request()->ajax()) {
                 return response()->json([
@@ -166,7 +168,9 @@ class PerkembanganAnakController extends Controller
             }
             
             $action = 'edit';
-            return view('perkembangan_anak', compact('perkembangan', 'action', 'dataAnak'));
+            $return_to_riwayat = request()->query('return_to_riwayat');
+            
+            return view('perkembangan_anak', compact('perkembangan', 'action', 'dataAnak', 'return_to_riwayat'));
         } catch (\Exception $e) {
             \Log::error('Error in edit perkembangan: ' . $e->getMessage());
             
@@ -235,9 +239,24 @@ class PerkembanganAnakController extends Controller
                     'message' => 'Data perkembangan anak berhasil diperbarui!',
                     'data' => [
                         'old_record' => $oldRecord,
-                        'new_record' => $newRecord
+                        'new_record' => $newRecord,
+                        'redirect_url' => $request->header('Referer') ?: route('perkembangan.index')
                     ]
                 ]);
+            }
+
+            // Periksa jika ada parameter return_to_riwayat
+            if ($request->has('return_to_riwayat')) {
+                $anak_id = $request->input('return_to_riwayat');
+                return redirect()->route('perkembangan.riwayat', $anak_id)
+                    ->with('success', 'Data perkembangan anak berhasil diperbarui!');
+            }
+            
+            // Periksa jika request berasal dari halaman riwayat dan redirect kembali ke halaman tersebut
+            $referrer = $request->header('Referer');
+            if ($referrer && strpos($referrer, 'perkembangan/riwayat') !== false) {
+                return redirect($referrer)
+                    ->with('success', 'Data perkembangan anak berhasil diperbarui!');
             }
 
             return redirect()->route('perkembangan.index')
@@ -288,10 +307,18 @@ class PerkembanganAnakController extends Controller
             // Cari data anak
             $anak = \App\Models\Anak::findOrFail($anak_id);
             
-            // Ambil semua data perkembangan untuk anak ini
+            // Ambil parameter perPage dari request dengan default 5 data per halaman
+            $perPage = request()->input('perPage', 5);
+            
+            // Log untuk debugging
+            \Log::info('Riwayat perPage: ' . $perPage);
+            \Log::info('Request all: ' . json_encode(request()->all()));
+            
+            // Ambil semua data perkembangan untuk anak ini dengan pagination
             $perkembangan = PerkembanganAnak::where('anak_id', $anak_id)
                 ->orderBy('tanggal', 'desc')
-                ->get();
+                ->paginate($perPage)
+                ->appends(['perPage' => $perPage]); // Penting! Menambahkan parameter ke link pagination
             
             if ($perkembangan->isEmpty()) {
                 return redirect()->route('perkembangan.index')
@@ -306,5 +333,10 @@ class PerkembanganAnakController extends Controller
             return redirect()->route('perkembangan.index')
                 ->with('error', 'Terjadi kesalahan saat mengambil data riwayat: ' . $e->getMessage());
         }
+    }
+
+    public function excel()
+    {
+        return Excel::download(new PerkembanganExport, 'data-perkembangan-anak.xlsx');
     }
 }

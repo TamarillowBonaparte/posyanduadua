@@ -24,7 +24,8 @@ class Pengguna extends Authenticatable
         'password',
         'role',
         'no_telp',
-        'alamat'
+        'alamat',
+        'kader_status'
     ];
 
     protected $hidden = [
@@ -40,5 +41,15 @@ class Pengguna extends Authenticatable
     public function anak()
     {
         return $this->hasMany(Anak::class, 'pengguna_id', 'id');
+    }
+
+    public function isKaderUtama()
+    {
+        return $this->kader_status === 'utama';
+    }
+
+    public function isKaderAnggota()
+    {
+        return $this->kader_status === 'anggota';
     }
 } 

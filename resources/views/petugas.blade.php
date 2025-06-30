@@ -62,6 +62,7 @@
                             <th class="border border-gray-300 p-3">Email</th>
                             <th class="border border-gray-300 p-3">No Telp</th>
                             <th class="border border-gray-300 p-3">Alamat</th>
+                            <th class="border border-gray-300 p-3">Status Kader</th>
                             <th class="border border-gray-300 p-3 w-32">Aksi</th>
                         </tr>
                     </thead>
@@ -75,13 +76,25 @@
                                 <td class="border border-gray-300 p-3">{{ $p->no_telp }}</td>
                                 <td class="border border-gray-300 p-3">{{ $p->alamat }}</td>
                                 <td class="border border-gray-300 p-3">
+                                    {{ $p->kader_status === 'utama' ? 'Kader Utama' : 'Anggota' }}
+                                </td>
+                                <td class="border border-gray-300 p-3">
                                     <div class="flex items-center space-x-2">
-                                        <button onclick="openEditModal('{{ $p->nik }}', '{{ $p->nama }}', '{{ $p->email }}', '{{ $p->no_telp }}', '{{ $p->alamat }}')" class="bg-yellow-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Edit</button>
-                                        <form action="{{ route('petugas.destroy', $p->nik) }}" method="POST" class="inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data ini?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Hapus</button>
-                                        </form>
+                                        <button onclick="openEditModal('{{ $p->nik }}', '{{ $p->nama }}', '{{ $p->email }}', '{{ $p->no_telp }}', '{{ $p->alamat }}', '{{ $p->kader_status }}')" class="bg-yellow-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Edit</button>
+                                        
+                                        @php
+                                            $currentUser = auth()->user();
+                                        @endphp
+                                        
+                                        @if($currentUser->isKaderUtama())
+                                            @if($p->nik !== $currentUser->nik && $p->isKaderAnggota())
+                                                <form action="{{ route('petugas.destroy', $p->nik) }}" method="POST" class="inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data ini?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Hapus</button>
+                                                </form>
+                                            @endif
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -174,6 +187,16 @@
                         <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                     @enderror
                 </div>
+                <div>
+                    <label class="block text-sm font-semibold text-black mb-2">Status Kader*</label>
+                    <select name="kader_status" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300 @error('kader_status') border-red-500 @enderror" required>
+                        <option value="anggota" {{ old('kader_status') == 'anggota' ? 'selected' : '' }}>Anggota</option>
+                        <option value="utama" {{ old('kader_status') == 'utama' ? 'selected' : '' }}>Kader Utama</option>
+                    </select>
+                    @error('kader_status')
+                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                    @enderror
+                </div>
                 <!-- Hidden role field -->
                 <input type="hidden" name="role" value="admin">
             </div>
@@ -239,6 +262,16 @@
                         <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                     @enderror
                 </div>
+                <div>
+                    <label class="block text-sm font-semibold text-black mb-2">Status Kader*</label>
+                    <select name="kader_status" id="edit_kader_status" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300 @error('kader_status') border-red-500 @enderror" required>
+                        <option value="anggota">Anggota</option>
+                        <option value="utama">Kader Utama</option>
+                    </select>
+                    @error('kader_status')
+                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                    @enderror
+                </div>
                 <!-- Hidden role field -->
                 <input type="hidden" name="role" value="admin">
             </div>
@@ -265,13 +298,14 @@ function closeModal() {
     document.body.style.overflow = '';
 }
 
-function openEditModal(nik, nama, email, no_telp, alamat) {
+function openEditModal(nik, nama, email, no_telp, alamat, kader_status) {
     document.getElementById('editForm').action = `{{ url('/petugas') }}/${nik}`;
     document.getElementById('edit_nik').value = nik;
     document.getElementById('edit_nama').value = nama;
     document.getElementById('edit_email').value = email;
     document.getElementById('edit_no_telp').value = no_telp;
     document.getElementById('edit_alamat').value = alamat;
+    document.getElementById('edit_kader_status').value = kader_status;
     
     document.getElementById('editModal').classList.remove('hidden');
     document.getElementById('editModal').classList.add('flex');
@@ -293,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function() {
     @endif
     
     @if($errors->any() && session('modal') === 'edit')
-        openEditModal('{{ session('nik') }}', '{{ session('nama') }}', '{{ session('email') }}', '{{ session('no_telp') }}', '{{ session('alamat') }}');
+        openEditModal('{{ session('nik') }}', '{{ session('nama') }}', '{{ session('email') }}', '{{ session('no_telp') }}', '{{ session('alamat') }}', '{{ session('kader_status') }}');
     @endif
     
     // Close modal when clicking outside

@@ -14,11 +14,13 @@ class Stunting extends Model
     
     // Constants for status enum values
     const STATUS_STUNTING = 'Stunting';
+    const STATUS_RESIKO_STUNTING = 'Resiko Stunting';
     const STATUS_TIDAK_STUNTING = 'Tidak Stunting';
     
     // List of all valid status values
     public static $statusList = [
         self::STATUS_STUNTING,
+        self::STATUS_RESIKO_STUNTING,
         self::STATUS_TIDAK_STUNTING,
     ];
     
@@ -28,7 +30,6 @@ class Stunting extends Model
         'usia',
         'berat_badan',
         'tinggi_badan',
-        'lingkar_kepala',
         'catatan',
         'status',
         'perkembangan_id'
@@ -37,8 +38,7 @@ class Stunting extends Model
     protected $casts = [
         'tanggal' => 'date',
         'berat_badan' => 'decimal:2',
-        'tinggi_badan' => 'decimal:2',
-        'lingkar_kepala' => 'decimal:2'
+        'tinggi_badan' => 'decimal:2'
     ];
     
     public function anak()

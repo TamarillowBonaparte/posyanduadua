@@ -151,7 +151,12 @@
             <div class="bg-white/60 p-6 rounded-xl border border-white/40">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 my-4">
                     <div class="flex gap-2">
-                        <a href="#" class="bg-gradient-to-r from-blue-500 to-blue-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Cetak</a>
+                        <a href="{{ route('anak.excel') }}" class="bg-gradient-to-r from-green-500 to-green-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            Unduh Excel
+                        </a>
                     </div>
                     <form action="{{ route('anak.index') }}" method="GET" class="flex-grow md:max-w-xs">
                         <div class="flex">
@@ -192,8 +197,8 @@
                             <tr>
                                 <th class="border border-gray-300 p-3 w-16">No</th>
                                 <th class="border border-gray-300 p-3">NIK</th>
-                                <th class="border border-gray-300 p-3">Nama Ibu</th>
                                 <th class="border border-gray-300 p-3">Nama Anak</th>
+                                <th class="border border-gray-300 p-3">Nama Ibu</th>
                                 <th class="border border-gray-300 p-3">Tempat Lahir</th>
                                 <th class="border border-gray-300 p-3">Tanggal Lahir</th>
                                 <th class="border border-gray-300 p-3">Usia</th>
@@ -206,8 +211,8 @@
                                 <tr class="hover:bg-[#63BE9A]/10 transition">
                                     <td class="border border-gray-300 p-3">{{ ($anak->currentPage() - 1) * $anak->perPage() + $index + 1 }}</td>
                                     <td class="border border-gray-300 p-3">{{ $a->pengguna->nik ?? '-' }}</td>
-                                    <td class="border border-gray-300 p-3">{{ $a->pengguna->nama ?? '-' }}</td>
                                     <td class="border border-gray-300 p-3">{{ $a->nama_anak }}</td>
+                                    <td class="border border-gray-300 p-3">{{ $a->pengguna->nama ?? '-' }}</td>
                                     <td class="border border-gray-300 p-3">{{ $a->tempat_lahir }}</td>
                                     <td class="border border-gray-300 p-3">{{ $a->tanggal_lahir ? $a->tanggal_lahir->format('d F Y') : '-' }}</td>
                                     <td class="border border-gray-300 p-3">{{ $a->usia }}</td>
@@ -276,12 +281,12 @@
                             <p id="detail_nik" class="text-lg text-black">Loading...</p>
                         </div>
                         <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
-                            <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Nama Ibu</h3>
-                            <p id="detail_nama_orangtua" class="text-lg text-black">Loading...</p>
-                        </div>
-                        <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
                             <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Nama Anak</h3>
                             <p id="detail_nama_anak" class="text-lg text-black">Loading...</p>
+                        </div>
+                        <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                            <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Nama Ibu</h3>
+                            <p id="detail_nama_orangtua" class="text-lg text-black">Loading...</p>
                         </div>
                         <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
                             <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Tempat Lahir</h3>

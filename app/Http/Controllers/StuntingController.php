@@ -7,9 +7,25 @@ use App\Models\Anak;
 use App\Models\PerkembanganAnak;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use App\Exports\StuntingExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class StuntingController extends Controller
 {
+    protected $stuntingCalculator;
+
+    public function __construct()
+    {
+        // Fix error "Class App\Services\StuntingCalculator not found"
+        try {
+            $this->stuntingCalculator = app()->make('App\Services\StuntingCalculator');
+        } catch (\Throwable $e) {
+            // Buat manual jika injeksi gagal
+            require_once app_path('Services/StuntingCalculator.php');
+            $this->stuntingCalculator = new \App\Services\StuntingCalculator();
+        }
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -18,25 +34,47 @@ class StuntingController extends Controller
         $search = $request->input('search');
         $perPage = $request->input('perPage', 10); // Default 10 data per halaman
         
-        $query = Stunting::with(['anak', 'perkembangan']);
+        // Ambil semua anak yang memiliki setidaknya satu data stunting
+        $query = Anak::has('stunting')->with(['stunting' => function($query) {
+            $query->latest('tanggal'); // Ambil yang terbaru berdasarkan tanggal
+        }]);
         
         if ($search) {
-            $query->whereHas('anak', function($q) use ($search) {
-                    $q->where('nama_anak', 'like', "%{$search}%");
-                })
-                ->orWhere('status', 'like', "%{$search}%")
-                ->orWhere('catatan', 'like', "%{$search}%");
+            $query->where(function($q) use ($search) {
+                $q->where('nama_anak', 'like', "%{$search}%")
+                  ->orWhereHas('stunting', function($sq) use ($search) {
+                      $sq->where('status', 'like', "%{$search}%")
+                          ->orWhere('catatan', 'like', "%{$search}%");
+                  });
+            });
         }
         
-        $stunting = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        // Dapatkan hasil paginasi dari query Anak
+        $anakPaginator = $query->paginate($perPage);
         
-        // Pastikan data perkembangan terbaru terkait selalu digunakan
-        foreach ($stunting as $item) {
-            if ($item->perkembangan) {
-                // Refresh data relasi
-                $item->perkembangan = PerkembanganAnak::find($item->perkembangan_id);
+        // Proses koleksi Anak untuk mendapatkan data stunting terbaru
+        $stuntingCollection = collect();
+        foreach ($anakPaginator as $anak) {
+            if ($anak->stunting && $anak->stunting->count() > 0) {
+                $latest = $anak->stunting->first(); // Ambil data stunting terbaru
+                if ($latest) {
+                    $latest->setRelation('anak', $anak);
+                    $stuntingCollection->push($latest);
+                }
             }
         }
+        
+        // Gunakan paginator yang ada dengan koleksi baru
+        $stunting = new \Illuminate\Pagination\LengthAwarePaginator(
+            $stuntingCollection,
+            $anakPaginator->total(),
+            $anakPaginator->perPage(),
+            $anakPaginator->currentPage(),
+            ['path' => \Illuminate\Support\Facades\Request::url()]
+        );
+        
+        // Set query string dari request asli ke paginator
+        $stunting->appends($request->query());
         
         return view('stunting', compact('stunting', 'search'));
     }
@@ -62,7 +100,7 @@ class StuntingController extends Controller
             'tanggal' => 'required|date',
             'usia' => 'required|string|max:10',
             'catatan' => 'nullable|string',
-            'status' => 'required|in:Stunting,Tidak Stunting',
+            'status' => 'nullable|in:Stunting,Resiko Stunting,Tidak Stunting',
             'perkembangan_id' => 'required|exists:perkembangan_anak,id',
         ]);
 
@@ -75,13 +113,26 @@ class StuntingController extends Controller
         // Ambil data perkembangan untuk mendapatkan tinggi_badan dan berat_badan
         $perkembangan = PerkembanganAnak::findOrFail($request->perkembangan_id);
         
+        // Extract usia dalam bulan
+        $ageInMonths = $this->stuntingCalculator->extractAgeInMonths($request->usia);
+        
+        // Hitung status stunting berdasarkan usia dan tinggi badan
+        $calculatedStatus = $this->stuntingCalculator->determineStatus(
+            $ageInMonths, 
+            $perkembangan->tinggi_badan,
+            $perkembangan->berat_badan
+        );
+        
+        // Gunakan status yang dihitung atau yang dipilih pengguna jika ada
+        $status = $request->status ?? $calculatedStatus;
+        
         // Buat data stunting baru dengan nilai dari form dan data dari perkembangan
         $stunting = new Stunting();
         $stunting->anak_id = $request->anak_id;
         $stunting->tanggal = $request->tanggal;
         $stunting->usia = $request->usia;
         $stunting->catatan = $request->catatan;
-        $stunting->status = $request->status;
+        $stunting->status = $status;
         $stunting->perkembangan_id = $request->perkembangan_id;
         // Ambil tinggi_badan dan berat_badan langsung dari perkembangan terkait
         $stunting->tinggi_badan = $perkembangan->tinggi_badan;
@@ -149,7 +200,7 @@ class StuntingController extends Controller
             'tanggal' => 'required|date',
             'usia' => 'required|string|max:10',
             'catatan' => 'nullable|string',
-            'status' => 'required|in:Stunting,Tidak Stunting',
+            'status' => 'nullable|in:Stunting,Resiko Stunting,Tidak Stunting',
             'perkembangan_id' => 'required|exists:perkembangan_anak,id',
         ]);
 
@@ -168,12 +219,25 @@ class StuntingController extends Controller
         // Ambil data perkembangan untuk mendapatkan tinggi_badan dan berat_badan
         $perkembangan = PerkembanganAnak::findOrFail($request->perkembangan_id);
         
+        // Extract usia dalam bulan
+        $ageInMonths = $this->stuntingCalculator->extractAgeInMonths($request->usia);
+        
+        // Hitung status stunting berdasarkan usia dan tinggi badan
+        $calculatedStatus = $this->stuntingCalculator->determineStatus(
+            $ageInMonths, 
+            $perkembangan->tinggi_badan,
+            $perkembangan->berat_badan
+        );
+        
+        // Gunakan status yang dihitung atau yang dipilih pengguna jika ada
+        $status = $request->status ?? $calculatedStatus;
+        
         // Update data stunting dengan nilai dari form dan data dari perkembangan
         $stunting->anak_id = $request->anak_id;
         $stunting->tanggal = $request->tanggal;
         $stunting->usia = $request->usia;
         $stunting->catatan = $request->catatan;
-        $stunting->status = $request->status;
+        $stunting->status = $status;
         $stunting->perkembangan_id = $request->perkembangan_id;
         // Ambil tinggi_badan dan berat_badan langsung dari perkembangan terkait
         $stunting->tinggi_badan = $perkembangan->tinggi_badan;
@@ -202,5 +266,42 @@ class StuntingController extends Controller
 
         return redirect()->route('stunting.index')
             ->with('success', 'Data stunting berhasil dihapus!');
+    }
+    
+    /**
+     * Menampilkan riwayat stunting untuk satu anak.
+     */
+    public function riwayat($anak_id)
+    {
+        try {
+            // Cari data anak
+            $anak = Anak::findOrFail($anak_id);
+            
+            // Ambil parameter perPage dari request dengan default 5 data per halaman
+            $perPage = request()->input('perPage', 5);
+            
+            // Ambil semua data stunting untuk anak ini dengan pagination
+            $stunting = Stunting::where('anak_id', $anak_id)
+                ->orderBy('tanggal', 'desc')
+                ->paginate($perPage)
+                ->appends(['perPage' => $perPage]);
+            
+            if ($stunting->isEmpty()) {
+                return redirect()->route('stunting.index')
+                    ->with('error', 'Tidak ada data riwayat stunting untuk anak ini');
+            }
+            
+            $action = 'riwayat';
+            return view('stunting', compact('stunting', 'anak', 'action'));
+            
+        } catch (\Exception $e) {
+            return redirect()->route('stunting.index')
+                ->with('error', 'Terjadi kesalahan saat mengambil data riwayat: ' . $e->getMessage());
+        }
+    }
+
+    public function excel()
+    {
+        return Excel::download(new StuntingExport, 'data-stunting.xlsx');
     }
 }

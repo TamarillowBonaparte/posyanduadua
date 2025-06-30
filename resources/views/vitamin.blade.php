@@ -137,7 +137,12 @@
             <div class="bg-white/60 p-6 rounded-xl border border-white/40">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 my-4">
                     <div class="flex gap-2">
-                        <a href="#" class="bg-gradient-to-r from-blue-500 to-blue-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Cetak</a>
+                        <a href="{{ route('vitamin.excel') }}" class="bg-gradient-to-r from-green-500 to-green-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            Unduh Excel
+                        </a>
                     </div>
                     <form action="{{ route('vitamin.index') }}" method="GET" class="flex-grow md:max-w-xs">
                         <div class="flex">
@@ -536,17 +541,21 @@ function fetchVitaminEdit(id) {
     // Fetch data
     fetch(`{{ url('/vitamin') }}/${id}/edit`, {
         headers: {
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
         }
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Edit data received:', data); // Debugging
+        
         // Set form action
         document.getElementById('editForm').action = `{{ url('/vitamin') }}/${id}`;
         
         // Clear existing options except the first one (placeholder)
         const anakSelect = document.getElementById('edit_anak_id');
         const jenisSelect = document.getElementById('edit_jenis_id');
+        const statusSelect = document.getElementById('edit_status');
         
         // Keep only the first option
         anakSelect.innerHTML = '<option value="">-Pilih Anak-</option>';
@@ -558,7 +567,7 @@ function fetchVitaminEdit(id) {
                 const option = document.createElement('option');
                 option.value = anak.id;
                 option.textContent = anak.nama_anak;
-                if (anak.id === data.vitamin.anak_id) {
+                if (Number(anak.id) === Number(data.vitamin.anak_id)) {
                     option.selected = true;
                 }
                 anakSelect.appendChild(option);
@@ -571,7 +580,7 @@ function fetchVitaminEdit(id) {
                 const option = document.createElement('option');
                 option.value = jenis.id;
                 option.textContent = jenis.nama;
-                if (jenis.id === data.vitamin.jenis_id) {
+                if (Number(jenis.id) === Number(data.vitamin.jenis_id)) {
                     option.selected = true;
                 }
                 jenisSelect.appendChild(option);
@@ -579,8 +588,22 @@ function fetchVitaminEdit(id) {
         }
         
         // Set other form values
-        document.getElementById('edit_tanggal').value = data.vitamin.tanggal;
-        document.getElementById('edit_status').value = data.vitamin.status;
+        let tanggalValue = '';
+        if (data.vitamin.tanggal) {
+            // Pastikan format tanggal benar (YYYY-MM-DD)
+            try {
+                const tanggalParts = data.vitamin.tanggal.split('T')[0];
+                tanggalValue = tanggalParts;
+                console.log('Tanggal value:', tanggalValue);
+            } catch (e) {
+                console.error('Error parsing tanggal:', e);
+            }
+        }
+        document.getElementById('edit_tanggal').value = tanggalValue;
+        
+        // Set status
+        statusSelect.value = data.vitamin.status;
+        console.log('Status value set to:', data.vitamin.status);
         
         // Set up form submission handler for AJAX
         document.getElementById('editForm').onsubmit = function(e) {

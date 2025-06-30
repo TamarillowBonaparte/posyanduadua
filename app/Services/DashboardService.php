@@ -33,7 +33,18 @@ class DashboardService
     public function getTotalStuntingCases(): int
     {
         try {
-            return Stunting::where('status', 'Stunting')->count();
+            // Dapatkan subquery untuk mendapatkan ID stunting terbaru untuk setiap anak
+            $latestStuntingIds = Stunting::select('id')
+                ->whereIn('id', function($query) {
+                    $query->selectRaw('MAX(id)')
+                        ->from('stunting')
+                        ->groupBy('anak_id');
+                });
+
+            // Hitung total kasus stunting dari record terbaru
+            return Stunting::whereIn('id', $latestStuntingIds)
+                ->where('status', 'Stunting')
+                ->count();
         } catch (Exception $e) {
             Log::error('Error counting stunting cases: ' . $e->getMessage());
             return 0;

@@ -6,6 +6,8 @@ use App\Models\Pengguna;
 use App\Models\Anak;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use App\Exports\PenggunaExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class PenggunaController extends Controller
 {
@@ -194,5 +196,10 @@ class PenggunaController extends Controller
 
         return redirect()->route('pengguna.index')
             ->with('success', 'Data pengguna berhasil dihapus!');
+    }
+
+    public function excel()
+    {
+        return Excel::download(new PenggunaExport, 'data-pengguna.xlsx');
     }
 } 

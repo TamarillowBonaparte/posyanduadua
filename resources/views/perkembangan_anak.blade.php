@@ -68,11 +68,19 @@
         <div class="w-full max-w-5xl bg-white/70 backdrop-blur-md rounded-2xl shadow-xl p-8 mx-auto mt-8 border border-white/40">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-2xl font-bold text-black">Edit Data Perkembangan Anak</h3>
-                <a href="{{ route('perkembangan.index') }}" class="bg-gradient-to-r from-[#63BE9A] to-[#06B3BF] text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Kembali</a>
+                @if(isset($return_to_riwayat))
+                    <a href="{{ route('perkembangan.riwayat', $return_to_riwayat) }}" class="bg-gradient-to-r from-[#63BE9A] to-[#06B3BF] text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Kembali</a>
+                @else
+                    <a href="{{ route('perkembangan.index') }}" class="bg-gradient-to-r from-[#63BE9A] to-[#06B3BF] text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Kembali</a>
+                @endif
             </div>
             <form action="{{ route('perkembangan.update', $perkembangan->id) }}" method="POST">
                 @csrf
                 @method('PUT')
+                <input type="hidden" name="_method" value="PUT">
+                @if(isset($return_to_riwayat))
+                    <input type="hidden" name="return_to_riwayat" value="{{ $return_to_riwayat }}">
+                @endif
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label class="block text-sm font-semibold text-black">Nama Anak*</label>
@@ -128,6 +136,14 @@
                         <p class="text-lg text-black">{{ $perkembangan->anak->nama_anak ?? 'Tidak ada data' }}</p>
                     </div>
                     <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                        <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Nama Ibu</h3>
+                        <p class="text-lg text-black">{{ $perkembangan->anak->pengguna->nama ?? '-' }}</p>
+                    </div>
+                    <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                        <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Tempat Lahir</h3>
+                        <p class="text-lg text-black">{{ $perkembangan->anak->tempat_lahir ?? '-' }}</p>
+                    </div>
+                    <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
                         <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Tanggal</h3>
                         <p class="text-lg text-black">
                             @if(isset($perkembangan->tanggal) && $perkembangan->tanggal instanceof \DateTime)
@@ -162,7 +178,7 @@
             </div>
             
             <div class="mt-8 flex justify-between">
-                <a href="{{ route('perkembangan.edit', $perkembangan->id) }}" class="bg-gradient-to-r from-yellow-500 to-yellow-400 text-white px-6 py-3 rounded-xl font-semibold shadow hover:opacity-90 transition">Edit Data</a>
+                <a href="{{ route('perkembangan.create') }}" class="bg-gradient-to-r from-green-500 to-green-400 text-white px-6 py-3 rounded-xl font-semibold shadow hover:opacity-90 transition">Tambah Data</a>
                 
                 <form action="{{ route('perkembangan.destroy', $perkembangan->id) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data ini?');">
                     @csrf
@@ -190,69 +206,126 @@
                 </div>
             </div>
             
-            <!-- Timeline Riwayat -->
-            <div class="relative">
-                <div class="absolute left-4 md:left-6 top-0 h-full w-0.5 bg-[#06B3BF]/50"></div>
-                
-                @foreach($perkembangan as $p)
-                    <div class="mb-6 ml-8 md:ml-12 relative">
-                        <div class="absolute -left-8 md:-left-12 top-4 w-5 h-5 rounded-full bg-[#06B3BF] border-4 border-white"></div>
-                        
-                        <div class="bg-white/90 p-5 rounded-xl border border-[#63BE9A]/30 shadow-sm">
-                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
-                                <h4 class="text-lg font-semibold text-[#06B3BF]">
+            <!-- Menyimpan data anak untuk JavaScript -->
+            <script>
+                // Menyimpan data anak untuk diakses dari JavaScript
+                var anak = {
+                    id: {{ $anak->id }},
+                    nama_anak: "{{ $anak->nama_anak }}"
+                };
+                console.log('Anak data initialized:', anak);
+            </script>
+            
+            <!-- Row Page Selector untuk Riwayat -->
+            <div class="flex justify-end mb-4">
+                <form action="{{ route('perkembangan.riwayat', $anak->id) }}" method="GET" class="flex items-center">
+                    <label for="perPage" class="mr-2 text-sm">Tampilkan:</label>
+                    <select name="perPage" id="perPage" class="border rounded p-1 text-sm" onchange="this.form.submit()">
+                        <option value="5" {{ request('perPage') == 5 || request('perPage') == null && 5 == 5 ? 'selected' : '' }}>5</option>
+                        <option value="10" {{ request('perPage') == 10 ? 'selected' : '' }}>10</option>
+                        <option value="25" {{ request('perPage') == 25 ? 'selected' : '' }}>25</option>
+                        <option value="50" {{ request('perPage') == 50 ? 'selected' : '' }}>50</option>
+                    </select>
+                    <span class="ml-2 text-sm">data per halaman</span>
+                </form>
+            </div>
+            
+            <!-- Tabel Riwayat -->
+            <div class="bg-white/60 p-6 rounded-xl border border-white/40">
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[800px] border-collapse border border-gray-300 text-left rounded-xl overflow-hidden">
+                        <thead class="bg-gradient-to-r from-[#63BE9A] to-[#06B3BF] text-white">
+                            <tr>
+                                <th class="border border-gray-300 p-3 w-16">No</th>
+                                <th class="border border-gray-300 p-3">Tanggal</th>
+                                <th class="border border-gray-300 p-3">Berat Badan</th>
+                                <th class="border border-gray-300 p-3">Status BB</th>
+                                <th class="border border-gray-300 p-3">Tinggi Badan</th>
+                                <th class="border border-gray-300 p-3">Status TB</th>
+                                <th class="border border-gray-300 p-3">Terdaftar</th>
+                                <th class="border border-gray-300 p-3 w-32">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white/80">
+                            @forelse($perkembangan as $index => $p)
+                                <tr class="hover:bg-[#63BE9A]/10 transition">
+                                    <td class="border border-gray-300 p-3">{{ ($perkembangan->currentPage() - 1) * $perkembangan->perPage() + $index + 1 }}</td>
+                                    <td class="border border-gray-300 p-3">
                                     @if(isset($p->tanggal) && $p->tanggal instanceof \DateTime)
                                         {{ $p->tanggal->format('d F Y') }}
                                     @else
                                         Tanggal tidak valid
                                     @endif
-                                </h4>
-                                <span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">
+                                    </td>
+                                    <td class="border border-gray-300 p-3">{{ $p->berat_badan ?? '-' }} kg</td>
+                                    <td class="border border-gray-300 p-3">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                            @if($p->status_berat_badan == 'Sangat Kurang') bg-red-100 text-red-800
+                                            @elseif($p->status_berat_badan == 'Kurang') bg-orange-100 text-orange-800
+                                            @elseif($p->status_berat_badan == 'Resiko Kurang') bg-yellow-100 text-yellow-800
+                                            @elseif($p->status_berat_badan == 'Normal') bg-green-100 text-green-800
+                                            @elseif($p->status_berat_badan == 'Resiko Lebih') bg-blue-100 text-blue-800
+                                            @elseif($p->status_berat_badan == 'Lebih') bg-indigo-100 text-indigo-800
+                                            @elseif($p->status_berat_badan == 'Sangat Lebih') bg-purple-100 text-purple-800
+                                            @endif">
+                                            {{ $p->status_berat_badan ?? '-' }}
+                                        </span>
+                                    </td>
+                                    <td class="border border-gray-300 p-3">{{ $p->tinggi_badan ?? '-' }} cm</td>
+                                    <td class="border border-gray-300 p-3">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                            @if($p->status_tinggi_badan == 'Sangat Kurang') bg-red-100 text-red-800
+                                            @elseif($p->status_tinggi_badan == 'Kurang') bg-orange-100 text-orange-800
+                                            @elseif($p->status_tinggi_badan == 'Resiko Kurang') bg-yellow-100 text-yellow-800
+                                            @elseif($p->status_tinggi_badan == 'Normal') bg-green-100 text-green-800
+                                            @elseif($p->status_tinggi_badan == 'Resiko Lebih') bg-blue-100 text-blue-800
+                                            @elseif($p->status_tinggi_badan == 'Lebih') bg-indigo-100 text-indigo-800
+                                            @elseif($p->status_tinggi_badan == 'Sangat Lebih') bg-purple-100 text-purple-800
+                                            @endif">
+                                            {{ $p->status_tinggi_badan ?? '-' }}
+                                        </span>
+                                    </td>
+                                    <td class="border border-gray-300 p-3">
                                     @if(isset($p->created_at) && $p->created_at instanceof \DateTime)
+                                            <span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">
                                         {{ $p->created_at->diffForHumans() }}
-                                    @endif
                                 </span>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-12 h-12 flex items-center justify-center bg-blue-100 rounded-full">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm text-gray-600">Berat Badan</p>
-                                        <p class="font-semibold text-lg">{{ $p->berat_badan ?? '-' }} kg</p>
-                                    </div>
-                                </div>
-                                
-                                <div class="flex items-center gap-2">
-                                    <div class="w-12 h-12 flex items-center justify-center bg-green-100 rounded-full">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 11l7-7 7 7M5 19l7-7 7 7" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm text-gray-600">Tinggi Badan</p>
-                                        <p class="font-semibold text-lg">{{ $p->tinggi_badan ?? '-' }} cm</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="mt-4 flex justify-end space-x-2">
-                                <a href="javascript:void(0)" onclick="fetchDetail({{ $p->id }})" class="text-blue-500 hover:underline text-sm">Detail</a>
-                                <a href="javascript:void(0)" onclick="fetchEdit({{ $p->id }})" class="text-yellow-500 hover:underline text-sm">Edit</a>
-                                <a href="{{ route('perkembangan.riwayat', $p->anak_id) }}" class="text-purple-500 hover:underline text-sm">Riwayat</a>
-                                <form action="{{ url('/perkembangan/'.$p->id) }}" method="POST" class="inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data ini?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-red-500 hover:underline text-sm">Hapus</button>
-                                </form>
-                            </div>
+                                        @endif
+                                    </td>
+                                    <td class="border border-gray-300 p-3">
+                                        <div class="flex items-center space-x-2">
+                                            <a href="javascript:void(0)" onclick="fetchDetail({{ $p->id }})" class="bg-blue-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Detail</a>
+                                            <a href="{{ route('perkembangan.edit', ['id' => $p->id, 'return_to_riwayat' => $anak->id]) }}" class="bg-yellow-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Edit</a>
+                                            <form action="{{ url('/perkembangan/'.$p->id) }}" method="POST" class="inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data ini?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Hapus</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="border border-gray-300 p-3 text-center bg-white/60">
+                                        Tidak ada data riwayat perkembangan untuk anak ini
+                                    </td>
+                                </tr>
+                            @endforelse
+                            @if(count($perkembangan) > 0 && count($perkembangan) < 4)
+                                @for($i = 0; $i < 4 - count($perkembangan); $i++)
+                                    <tr>
+                                        <td class="border border-gray-300 p-3 h-12 bg-white/60" colspan="6"></td>
+                                    </tr>
+                                @endfor
+                            @endif
+                        </tbody>
+                    </table>
                         </div>
                     </div>
-                @endforeach
+            
+            <!-- Pagination untuk Riwayat -->
+            <div class="mt-6 flex justify-center">
+                {{ $perkembangan->links() }}
             </div>
         </div>
     @else
@@ -262,7 +335,12 @@
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 my-4">
                     <div class="flex gap-2">
                         <a href="javascript:void(0)" onclick="showTambahForm()" class="bg-gradient-to-r from-[#63BE9A] to-[#06B3BF] text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Tambah</a>
-                        <a href="#" class="bg-gradient-to-r from-blue-500 to-blue-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Cetak</a>
+                        <a href="{{ route('perkembangan.excel') }}" class="bg-gradient-to-r from-green-500 to-green-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            Unduh Excel
+                        </a>
                     </div>
                     <form action="{{ route('perkembangan.index') }}" method="GET" class="flex-grow md:max-w-xs">
                         <div class="flex">
@@ -309,9 +387,13 @@
                             <tr>
                                 <th class="border border-gray-300 p-3 w-16">No</th>
                                 <th class="border border-gray-300 p-3">Nama Anak</th>
+                                <th class="border border-gray-300 p-3">Nama Ibu</th>
+                                <th class="border border-gray-300 p-3">Tempat Lahir</th>
                                 <th class="border border-gray-300 p-3">Tanggal</th>
                                 <th class="border border-gray-300 p-3">Berat Badan</th>
+                                <th class="border border-gray-300 p-3">Status BB</th>
                                 <th class="border border-gray-300 p-3">Tinggi Badan</th>
+                                <th class="border border-gray-300 p-3">Status TB</th>
                                 <th class="border border-gray-300 p-3 w-32">Aksi</th>
                             </tr>
                         </thead>
@@ -322,8 +404,10 @@
                                     Log::info('Processing perkembangan ID: ' . ($p->id ?? 'NULL'));
                                 @endphp
                                 <tr class="hover:bg-[#63BE9A]/10 transition">
-                                    <td class="border border-gray-300 p-3">{{ $loop->index + 1 }}</td>
+                                    <td class="border border-gray-300 p-3">{{ ($perkembangan->currentPage() - 1) * $perkembangan->perPage() + $index + 1 }}</td>
                                     <td class="border border-gray-300 p-3">{{ $p->anak->nama_anak ?? '-' }}</td>
+                                    <td class="border border-gray-300 p-3">{{ $p->anak->pengguna->nama ?? '-' }}</td>
+                                    <td class="border border-gray-300 p-3">{{ $p->anak->tempat_lahir ?? '-' }}</td>
                                     <td class="border border-gray-300 p-3">
                                         @if(isset($p->tanggal) && $p->tanggal instanceof \DateTime)
                                             {{ $p->tanggal->format('d-m-Y') }}
@@ -332,12 +416,38 @@
                                         @endif
                                     </td>
                                     <td class="border border-gray-300 p-3">{{ $p->berat_badan ?? '-' }} kg</td>
+                                    <td class="border border-gray-300 p-3">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                            @if($p->status_berat_badan == 'Sangat Kurang') bg-red-100 text-red-800
+                                            @elseif($p->status_berat_badan == 'Kurang') bg-orange-100 text-orange-800
+                                            @elseif($p->status_berat_badan == 'Resiko Kurang') bg-yellow-100 text-yellow-800
+                                            @elseif($p->status_berat_badan == 'Normal') bg-green-100 text-green-800
+                                            @elseif($p->status_berat_badan == 'Resiko Lebih') bg-blue-100 text-blue-800
+                                            @elseif($p->status_berat_badan == 'Lebih') bg-indigo-100 text-indigo-800
+                                            @elseif($p->status_berat_badan == 'Sangat Lebih') bg-purple-100 text-purple-800
+                                            @endif">
+                                            {{ $p->status_berat_badan ?? '-' }}
+                                        </span>
+                                    </td>
                                     <td class="border border-gray-300 p-3">{{ $p->tinggi_badan ?? '-' }} cm</td>
+                                    <td class="border border-gray-300 p-3">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                            @if($p->status_tinggi_badan == 'Sangat Kurang') bg-red-100 text-red-800
+                                            @elseif($p->status_tinggi_badan == 'Kurang') bg-orange-100 text-orange-800
+                                            @elseif($p->status_tinggi_badan == 'Resiko Kurang') bg-yellow-100 text-yellow-800
+                                            @elseif($p->status_tinggi_badan == 'Normal') bg-green-100 text-green-800
+                                            @elseif($p->status_tinggi_badan == 'Resiko Lebih') bg-blue-100 text-blue-800
+                                            @elseif($p->status_tinggi_badan == 'Lebih') bg-indigo-100 text-indigo-800
+                                            @elseif($p->status_tinggi_badan == 'Sangat Lebih') bg-purple-100 text-purple-800
+                                            @endif">
+                                            {{ $p->status_tinggi_badan ?? '-' }}
+                                        </span>
+                                    </td>
                                     <td class="border border-gray-300 p-3">
                                         <div class="flex items-center space-x-2">
                                             @if($p->id)
                                                 <a href="javascript:void(0)" onclick="fetchDetail({{ $p->id }})" class="bg-blue-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Detail</a>
-                                                <a href="javascript:void(0)" onclick="fetchEdit({{ $p->id }})" class="bg-yellow-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Edit</a>
+                                                <a href="javascript:void(0)" onclick="showTambahForm({{ $p->anak_id }})" class="bg-green-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Tambah</a>
                                                 <a href="{{ route('perkembangan.riwayat', $p->anak_id) }}" class="bg-purple-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Riwayat</a>
                                                 <form action="{{ url('/perkembangan/'.$p->id) }}" method="POST" class="inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data ini?');">
                                                     @csrf
@@ -385,129 +495,136 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Modal untuk Detail -->
-        <div id="detailModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex justify-center items-center z-50">
-            <div class="bg-[#d2e8e1] backdrop-blur-md p-6 rounded-2xl shadow-xl max-w-md w-full mx-auto border border-white/40">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-bold text-black">Detail Perkembangan Anak</h3>
-                    <button onclick="closeModal('detailModal')" class="text-gray-500 hover:text-gray-700">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-                <div class="overflow-y-auto max-h-[70vh]">
-                    <div class="space-y-4 mb-6">
-                        <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
-                            <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Nama Anak</h3>
-                            <p id="detail_nama_anak" class="text-lg text-black">Loading...</p>
-                        </div>
-                        <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
-                            <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Tanggal</h3>
-                            <p id="detail_tanggal" class="text-lg text-black">Loading...</p>
-                        </div>
-                        <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
-                            <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Berat Badan</h3>
-                            <p id="detail_berat_badan" class="text-lg text-black">Loading...</p>
-                        </div>
-                        <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
-                            <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Tinggi Badan</h3>
-                            <p id="detail_tinggi_badan" class="text-lg text-black">Loading...</p>
-                        </div>
-                        <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
-                            <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Terdaftar Pada</h3>
-                            <p id="detail_terdaftar" class="text-lg text-black">Loading...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Modal untuk Edit -->
-        <div id="editModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex justify-center items-center z-50">
-            <div class="bg-[#d2e8e1] backdrop-blur-md p-6 rounded-2xl shadow-xl max-w-md w-full mx-auto border border-white/40">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-bold text-black">Edit Data Perkembangan Anak</h3>
-                    <button onclick="closeModal('editModal')" class="text-gray-500 hover:text-gray-700">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-                <form id="editForm" action="" method="POST">
-                    @csrf
-                    @method('PUT')
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-black">Nama Anak*</label>
-                            <select name="anak_id" id="edit_anak_id" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300">
-                                <option value="">-Pilih Anak-</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-black">Tanggal*</label>
-                            <input type="date" name="tanggal" id="edit_tanggal" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-black">Berat Badan (kg)*</label>
-                            <input type="number" name="berat_badan" id="edit_berat_badan" step="0.01" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" placeholder="Berat Badan">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-black">Tinggi Badan (cm)*</label>
-                            <input type="number" name="tinggi_badan" id="edit_tinggi_badan" step="0.01" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" placeholder="Tinggi Badan">
-                        </div>
-                    </div>
-                    <div class="mt-6 flex justify-end">
-                        <button type="submit" class="bg-gradient-to-r from-[#63BE9A] to-[#06B3BF] text-white px-6 py-3 rounded-xl font-semibold shadow hover:opacity-90 transition">Perbarui Data</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Modal untuk Tambah Data -->
-        <div id="tambahModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex justify-center items-center z-50">
-            <div class="bg-[#d2e8e1] backdrop-blur-md p-6 rounded-2xl shadow-xl max-w-md w-full mx-auto border border-white/40">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-bold text-black">Tambah Data Perkembangan Anak</h3>
-                    <button onclick="closeModal('tambahModal')" class="text-gray-500 hover:text-gray-700">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-                <form id="tambahForm" action="{{ route('perkembangan.store') }}" method="POST">
-                    @csrf
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-black">Nama Anak*</label>
-                            <select name="anak_id" id="tambah_anak_id" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300">
-                                <option value="">-Pilih Anak-</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-black">Tanggal*</label>
-                            <input type="date" name="tanggal" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" value="{{ date('Y-m-d') }}">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-black">Berat Badan (kg)*</label>
-                            <input type="number" name="berat_badan" step="0.01" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" placeholder="Berat Badan">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-black">Tinggi Badan (cm)*</label>
-                            <input type="number" name="tinggi_badan" step="0.01" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" placeholder="Tinggi Badan">
-                        </div>
-                    </div>
-                    <div class="mt-6 flex justify-end">
-                        <button type="submit" class="bg-gradient-to-r from-[#63BE9A] to-[#06B3BF] text-white px-6 py-3 rounded-xl font-semibold shadow hover:opacity-90 transition">Simpan Data</button>
-                    </div>
-                </form>
-            </div>
-        </div>
     @endif
 </div>
 
-@if(!isset($action))
+<!-- Modal untuk Detail -->
+<div id="detailModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex justify-center items-center z-50">
+    <div class="bg-[#d2e8e1] backdrop-blur-md p-6 rounded-2xl shadow-xl max-w-md w-full mx-auto border border-white/40">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-black">Detail Perkembangan Anak</h3>
+            <button onclick="closeModal('detailModal')" class="text-gray-500 hover:text-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="overflow-y-auto max-h-[70vh]">
+            <div class="space-y-4 mb-6">
+                <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                    <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Nama Anak</h3>
+                    <p id="detail_nama_anak" class="text-lg text-black">Loading...</p>
+                </div>
+                <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                    <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Nama Ibu</h3>
+                    <p id="detail_nama_ibu" class="text-lg text-black">Loading...</p>
+                </div>
+                <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                    <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Tempat Lahir</h3>
+                    <p id="detail_tempat_lahir" class="text-lg text-black">Loading...</p>
+                </div>
+                <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                    <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Tanggal</h3>
+                    <p id="detail_tanggal" class="text-lg text-black">Loading...</p>
+                </div>
+                <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                    <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Berat Badan</h3>
+                    <p id="detail_berat_badan" class="text-lg text-black">Loading...</p>
+                </div>
+                <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                    <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Tinggi Badan</h3>
+                    <p id="detail_tinggi_badan" class="text-lg text-black">Loading...</p>
+                </div>
+                <div class="bg-white/90 p-4 rounded-xl border border-[#63BE9A]/30 shadow-sm">
+                    <h3 class="text-sm font-semibold text-[#06B3BF] mb-1">Terdaftar Pada</h3>
+                    <p id="detail_terdaftar" class="text-lg text-black">Loading...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal untuk Edit -->
+<div id="editModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex justify-center items-center z-50">
+    <div class="bg-[#d2e8e1] backdrop-blur-md p-6 rounded-2xl shadow-xl max-w-md w-full mx-auto border border-white/40">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-black">Edit Data Perkembangan Anak</h3>
+            <button onclick="closeModal('editModal')" class="text-gray-500 hover:text-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form id="editForm" action="" method="POST">
+            @csrf
+            @method('PUT')
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-black">Nama Anak*</label>
+                    <select name="anak_id" id="edit_anak_id" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300">
+                        <option value="">-Pilih Anak-</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-black">Tanggal*</label>
+                    <input type="date" name="tanggal" id="edit_tanggal" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-black">Berat Badan (kg)*</label>
+                    <input type="number" name="berat_badan" id="edit_berat_badan" step="0.01" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" placeholder="Berat Badan">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-black">Tinggi Badan (cm)*</label>
+                    <input type="number" name="tinggi_badan" id="edit_tinggi_badan" step="0.01" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" placeholder="Tinggi Badan">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-gradient-to-r from-[#63BE9A] to-[#06B3BF] text-white px-6 py-3 rounded-xl font-semibold shadow hover:opacity-90 transition">Perbarui Data</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal untuk Tambah Data -->
+<div id="tambahModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex justify-center items-center z-50">
+    <div class="bg-[#d2e8e1] backdrop-blur-md p-6 rounded-2xl shadow-xl max-w-md w-full mx-auto border border-white/40">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-black">Tambah Data Perkembangan Anak</h3>
+            <button onclick="closeModal('tambahModal')" class="text-gray-500 hover:text-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form id="tambahForm" action="{{ route('perkembangan.store') }}" method="POST">
+            @csrf
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-black">Nama Anak*</label>
+                    <select name="anak_id" id="tambah_anak_id" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300">
+                        <option value="">-Pilih Anak-</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-black">Tanggal*</label>
+                    <input type="date" name="tanggal" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" value="{{ date('Y-m-d') }}">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-black">Berat Badan (kg)*</label>
+                    <input type="number" name="berat_badan" step="0.01" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" placeholder="Berat Badan">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-black">Tinggi Badan (cm)*</label>
+                    <input type="number" name="tinggi_badan" step="0.01" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#06B3BF] focus:border-transparent transition-all duration-300" placeholder="Tinggi Badan">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-gradient-to-r from-[#63BE9A] to-[#06B3BF] text-white px-6 py-3 rounded-xl font-semibold shadow hover:opacity-90 transition">Simpan Data</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 // Fungsi untuk membuka modal
 function openModal(modalId) {
@@ -527,6 +644,8 @@ function closeModal(modalId) {
 function fetchDetail(id) {
     // Tampilkan loading state
     document.getElementById('detail_nama_anak').textContent = 'Loading...';
+    document.getElementById('detail_nama_ibu').textContent = 'Loading...';
+    document.getElementById('detail_tempat_lahir').textContent = 'Loading...';
     document.getElementById('detail_tanggal').textContent = 'Loading...';
     document.getElementById('detail_berat_badan').textContent = 'Loading...';
     document.getElementById('detail_tinggi_badan').textContent = 'Loading...';
@@ -565,6 +684,8 @@ function fetchDetail(id) {
             
             // Isi data
             document.getElementById('detail_nama_anak').textContent = data.anak ? data.anak.nama_anak : '-';
+            document.getElementById('detail_nama_ibu').textContent = data.anak && data.anak.pengguna ? data.anak.pengguna.nama : '-';
+            document.getElementById('detail_tempat_lahir').textContent = data.anak ? data.anak.tempat_lahir : '-';
             document.getElementById('detail_tanggal').textContent = formattedTanggal;
             document.getElementById('detail_berat_badan').textContent = `${data.perkembangan.berat_badan} kg`;
             document.getElementById('detail_tinggi_badan').textContent = `${data.perkembangan.tinggi_badan} cm`;
@@ -583,6 +704,15 @@ function fetchDetail(id) {
 
 // Fungsi untuk fetch data edit
 function fetchEdit(id) {
+    console.log('Fetching edit for ID:', id);
+    // Cek keberadaan DOM elements
+    const editModal = document.getElementById('editModal');
+    if (!editModal) {
+        console.error('Modal edit tidak ditemukan');
+        alert('Terjadi kesalahan: Modal edit tidak ditemukan');
+        return;
+    }
+    
     // Buka modal
     openModal('editModal');
     
@@ -594,17 +724,81 @@ function fetchEdit(id) {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Edit response status:', response.status);
+        return response.json();
+    })
     .then(data => {
-        // Set form action
-        document.getElementById('editForm').action = `/perkembangan/${id}`;
+        console.log('Edit data received:', data);
+        
+        // Set form action dengan URL absolut
+        const editForm = document.getElementById('editForm');
+        if (editForm) {
+            // Gunakan base URL dari dokumen untuk memastikan URL absolut yang benar
+            const baseUrl = window.location.origin;
+            editForm.action = `${baseUrl}/perkembangan/${id}`;
+            console.log('Form action set to:', editForm.action);
+        } else {
+            console.error('Form edit tidak ditemukan');
+        }
         
         // Clear existing options except the first one
         const anakSelect = document.getElementById('edit_anak_id');
+        if (!anakSelect) {
+            console.error('Select anak_id tidak ditemukan');
+            return;
+        }
+        
         anakSelect.innerHTML = '<option value="">-Pilih Anak-</option>';
         
-        // Populate anak options
-        if (data.dataAnak && data.dataAnak.length > 0) {
+        // Cek apakah kita berada di halaman riwayat
+        const isRiwayatPage = window.location.href.includes('/perkembangan/riwayat/');
+        console.log('Is riwayat page:', isRiwayatPage);
+        
+        if (isRiwayatPage) {
+            // Di halaman riwayat, kita selalu tahu ID anak dari URL
+            // Format URL: /perkembangan/riwayat/{anak_id}
+            const urlParts = window.location.href.split('/');
+            const anakIdFromUrl = urlParts[urlParts.length - 1].split('?')[0]; // Ambil anak_id dari URL, hapus query string jika ada
+            console.log('Anak ID from URL:', anakIdFromUrl);
+            
+            // Jika ada data anak di halaman
+            if (typeof anak !== 'undefined') {
+                console.log('Anak data from window:', anak);
+                // Buat single option dengan data anak dari halaman
+                const option = document.createElement('option');
+                option.value = anak.id;
+                option.textContent = anak.nama_anak;
+                option.selected = true;
+                anakSelect.appendChild(option);
+                anakSelect.disabled = true; // Disable select karena hanya ada satu opsi
+            } 
+            // Jika tidak ada variabel anak di window, gunakan dari response
+            else if (data.anak) {
+                console.log('Anak data from response:', data.anak);
+                const option = document.createElement('option');
+                option.value = data.anak.id;
+                option.textContent = data.anak.nama_anak;
+                option.selected = true;
+                anakSelect.appendChild(option);
+                anakSelect.disabled = true;
+            }
+            // Jika masih gagal, gunakan dari dataAnak
+            else if (data.dataAnak && data.dataAnak.length > 0 && data.perkembangan.anak_id) {
+                data.dataAnak.forEach(anak => {
+                    if (anak.id == data.perkembangan.anak_id) {
+                        const option = document.createElement('option');
+                        option.value = anak.id;
+                        option.textContent = anak.nama_anak;
+                        option.selected = true;
+                        anakSelect.appendChild(option);
+                    }
+                });
+                anakSelect.disabled = true;
+            }
+        } 
+        // Jika bukan di halaman riwayat, tampilkan semua anak seperti biasa
+        else if (data.dataAnak && data.dataAnak.length > 0) {
             data.dataAnak.forEach(anak => {
                 const option = document.createElement('option');
                 option.value = anak.id;
@@ -617,11 +811,36 @@ function fetchEdit(id) {
         }
         
         // Set other form values
-        if (typeof data.perkembangan.tanggal === 'string') {
-            document.getElementById('edit_tanggal').value = data.perkembangan.tanggal.split('T')[0];
+        const tanggalInput = document.getElementById('edit_tanggal');
+        const beratInput = document.getElementById('edit_berat_badan');
+        const tinggiInput = document.getElementById('edit_tinggi_badan');
+        
+        if (tanggalInput) {
+            if (typeof data.perkembangan.tanggal === 'string') {
+                tanggalInput.value = data.perkembangan.tanggal.split('T')[0];
+            } else if (data.perkembangan.tanggal) {
+                // Handle jika tanggal adalah objek
+                console.log('Tanggal format:', data.perkembangan.tanggal);
+                // Coba ambil format tanggal (YYYY-MM-DD) dari objek tanggal
+                try {
+                    // Jika format sudah Y-m-d, gunakan langsung
+                    if (data.perkembangan.tanggal.date) {
+                        const dateParts = data.perkembangan.tanggal.date.split(' ')[0].split('-');
+                        tanggalInput.value = dateParts.join('-');
+                    }
+                } catch (e) {
+                    console.error('Error parsing date:', e);
+                }
+            }
         }
-        document.getElementById('edit_berat_badan').value = data.perkembangan.berat_badan;
-        document.getElementById('edit_tinggi_badan').value = data.perkembangan.tinggi_badan;
+        
+        if (beratInput) {
+            beratInput.value = data.perkembangan.berat_badan;
+        }
+        
+        if (tinggiInput) {
+            tinggiInput.value = data.perkembangan.tinggi_badan;
+        }
     })
     .catch(error => {
         console.error('Error:', error);
@@ -631,10 +850,32 @@ function fetchEdit(id) {
 }
 
 // Fungsi untuk menampilkan form tambah
-function showTambahForm() {
+function showTambahForm(anak_id = null) {
     // Buka modal
     openModal('tambahModal');
     
+    // Cek apakah kita berada di halaman riwayat
+    const isRiwayatPage = window.location.href.includes('/perkembangan/riwayat/');
+    console.log('Is riwayat page (tambah):', isRiwayatPage); // Log untuk debugging
+    
+    // Jika halaman riwayat dan variabel anak tersedia
+    if (isRiwayatPage && typeof anak !== 'undefined') {
+        console.log('Menggunakan anak dari halaman riwayat:', anak);
+        
+        // Clear existing options
+        const anakSelect = document.getElementById('tambah_anak_id');
+        anakSelect.innerHTML = '';
+        
+        // Tambahkan hanya 1 option dengan data anak dari halaman riwayat
+        const option = document.createElement('option');
+        option.value = anak.id;
+        option.textContent = anak.nama_anak;
+        option.selected = true;
+        anakSelect.appendChild(option);
+        anakSelect.disabled = true; // Disable select karena hanya ada satu opsi
+    }
+    // Jika bukan halaman riwayat atau tidak ada variabel anak, gunakan API seperti biasa
+    else {
     // Ambil data anak untuk dropdown
     fetch('/api/anak', {
         headers: {
@@ -655,6 +896,10 @@ function showTambahForm() {
                 const option = document.createElement('option');
                 option.value = anak.id;
                 option.textContent = anak.nama_anak;
+                    // Jika ada anak_id yang diberikan, pilih anak tersebut
+                    if (anak_id && anak.id == anak_id) {
+                        option.selected = true;
+                    }
                 anakSelect.appendChild(option);
             });
         }
@@ -663,6 +908,7 @@ function showTambahForm() {
         console.error('Error:', error);
         alert('Terjadi kesalahan saat mengambil data anak');
     });
+    }
 }
 
 // Event listener untuk tombol
@@ -676,88 +922,132 @@ document.addEventListener('DOMContentLoaded', function() {
             showTambahForm();
         });
     }
-});
 
-// Close modal ketika klik di luar modal
-window.addEventListener('click', function(event) {
-    const detailModal = document.getElementById('detailModal');
-    const editModal = document.getElementById('editModal');
-    const tambahModal = document.getElementById('tambahModal');
+    // Close modal ketika klik di luar modal
+    window.addEventListener('click', function(event) {
+        const detailModal = document.getElementById('detailModal');
+        const editModal = document.getElementById('editModal');
+        const tambahModal = document.getElementById('tambahModal');
+        
+        if (event.target === detailModal) closeModal('detailModal');
+        if (event.target === editModal) closeModal('editModal');
+        if (event.target === tambahModal) closeModal('tambahModal');
+    });
     
-    if (event.target === detailModal) closeModal('detailModal');
-    if (event.target === editModal) closeModal('editModal');
-    if (event.target === tambahModal) closeModal('tambahModal');
-});
-
-// Close modal dengan escape key
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeModal('detailModal');
-        closeModal('editModal');
-        closeModal('tambahModal');
+    // Close modal dengan escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal('detailModal');
+            closeModal('editModal');
+            closeModal('tambahModal');
+        }
+    });
+    
+    // Submit form handler untuk edit
+    const editForm = document.getElementById('editForm');
+    if (editForm) {
+        editForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Validasi form sebelum submit
+            const anakId = document.getElementById('edit_anak_id').value;
+            const tanggal = document.getElementById('edit_tanggal').value;
+            const beratBadan = document.getElementById('edit_berat_badan').value;
+            const tinggiBadan = document.getElementById('edit_tinggi_badan').value;
+            
+            if (!anakId || !tanggal || !beratBadan || !tinggiBadan) {
+                alert('Semua field harus diisi!');
+                return;
+            }
+            
+            const formData = new FormData(this);
+            formData.append('_method', 'PUT');
+            
+            // Log data untuk debugging
+            console.log('Submitting form to URL:', this.action);
+            for (let [key, value] of formData.entries()) {
+                console.log(key + ': ' + value);
+            }
+            
+            fetch(this.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                body: formData
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(result => {
+                console.log('Response result:', result);
+                if (result.success) {
+                    alert('Data berhasil diperbarui');
+                    closeModal('editModal');
+                    
+                    // Redirect ke URL yang disediakan server jika ada, atau reload halaman
+                    if (result.data && result.data.redirect_url) {
+                        window.location.href = result.data.redirect_url;
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    let errorMessage = 'Terjadi kesalahan';
+                    if (result.message) {
+                        errorMessage = result.message;
+                    } else if (result.errors) {
+                        errorMessage = Object.values(result.errors).flat().join('\n');
+                    }
+                    alert('Gagal memperbarui data: ' + errorMessage);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Terjadi kesalahan saat memperbarui data');
+            });
+        });
+    } else {
+        console.warn('Form edit tidak ditemukan');
+    }
+    
+    // Submit form handler untuk tambah
+    const tambahForm = document.getElementById('tambahForm');
+    if (tambahForm) {
+        tambahForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch(this.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('Data berhasil disimpan');
+                    closeModal('tambahModal');
+                    window.location.reload();
+                } else {
+                    alert('Gagal menyimpan data: ' + (result.message || 'Terjadi kesalahan'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Terjadi kesalahan saat menyimpan data');
+            });
+        });
+    } else {
+        console.warn('Form tambah tidak ditemukan');
     }
 });
-
-// Submit form handler
-document.getElementById('editForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    formData.append('_method', 'PUT');
-    
-    fetch(this.action, {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: formData
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            alert('Data berhasil diperbarui');
-            closeModal('editModal');
-            window.location.reload();
-        } else {
-            alert('Gagal memperbarui data: ' + (result.message || 'Terjadi kesalahan'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Terjadi kesalahan saat memperbarui data');
-    });
-});
-
-document.getElementById('tambahForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    
-    fetch(this.action, {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: formData
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            alert('Data berhasil disimpan');
-            closeModal('tambahModal');
-            window.location.reload();
-        } else {
-            alert('Gagal menyimpan data: ' + (result.message || 'Terjadi kesalahan'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Terjadi kesalahan saat menyimpan data');
-    });
-});
 </script>
-@endif
 
 @endsection

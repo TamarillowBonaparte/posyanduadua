@@ -15,6 +15,7 @@ use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\JenisImunisasiController;
 use App\Http\Controllers\JenisVitaminController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\InformasiController;
 use Illuminate\Support\Facades\Route;
 
 // Route untuk autentikasi
@@ -57,6 +58,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('data_orangtua', DataOrangTuaController::class);
 
     // Data Anak
+    Route::get('/anak/excel', [DataAnakController::class, 'excel'])->name('anak.excel');
     Route::resource('anak', DataAnakController::class)->except(['create', 'store', 'edit', 'update']);
     
     // AnakController dari Api untuk diakses lewat web
@@ -69,8 +71,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Perkembangan Anak
-    // Route::resource('perkembangan', PerkembanganAnakController::class);
-    // Mendefinisikan route secara manual
+    Route::get('/perkembangan/excel', [PerkembanganAnakController::class, 'excel'])->name('perkembangan.excel');
     Route::get('/perkembangan', [PerkembanganAnakController::class, 'index'])->name('perkembangan.index');
     Route::get('/perkembangan/create', [PerkembanganAnakController::class, 'create'])->name('perkembangan.create');
     Route::post('/perkembangan', [PerkembanganAnakController::class, 'store'])->name('perkembangan.store');
@@ -85,18 +86,23 @@ Route::middleware(['auth'])->group(function () {
         return \App\Models\Anak::all(['id', 'nama_anak']);
     });
 
-    // Imunisasi
+    // Data Imunisasi
+    Route::get('/imunisasi/excel', [ImunisasiController::class, 'excel'])->name('imunisasi.excel');
     Route::resource('imunisasi', ImunisasiController::class);
     Route::post('/imunisasi/register-from-jadwal', [ImunisasiController::class, 'registerFromJadwal'])->name('imunisasi.register-from-jadwal');
 
     // Vitamin
+    Route::get('/vitamin/excel', [VitaminController::class, 'excel'])->name('vitamin.excel');
     Route::resource('vitamin', VitaminController::class);
     Route::post('/vitamin/register-from-jadwal', [VitaminController::class, 'registerFromJadwal'])->name('vitamin.register-from-jadwal');
 
     // Stunting
+    Route::get('/stunting/excel', [StuntingController::class, 'excel'])->name('stunting.excel');
+    Route::get('/stunting/riwayat/{anak_id}', [StuntingController::class, 'riwayat'])->name('stunting.riwayat');
     Route::resource('stunting', StuntingController::class);
 
     // Data Pengguna
+    Route::get('/pengguna/excel', [PenggunaController::class, 'excel'])->name('pengguna.excel');
     Route::resource('pengguna', PenggunaController::class);
 
     // Data Petugas
@@ -111,5 +117,9 @@ Route::middleware(['auth'])->group(function () {
     // Profile
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+    // Tambahkan route untuk informasi
+    Route::get('/informasi', [InformasiController::class, 'index'])
+        ->name('informasi.index');
 });
 

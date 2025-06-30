@@ -223,7 +223,12 @@
             <div class="bg-white/60 p-6 rounded-xl border border-white/40">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 my-4">
                     <div class="flex gap-2">
-                        <a href="#" class="bg-gradient-to-r from-blue-500 to-blue-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Cetak</a>
+                        <a href="{{ route('pengguna.excel') }}" class="bg-gradient-to-r from-green-500 to-green-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            Unduh Excel
+                        </a>
                     </div>
                     <form action="{{ route('pengguna.index') }}" method="GET" class="flex-grow md:max-w-xs">
                         <div class="flex">
@@ -264,7 +269,7 @@
                             <tr>
                                 <th class="border border-gray-300 p-3 w-16">No</th>
                                 <th class="border border-gray-300 p-3">NIK</th>
-                                <th class="border border-gray-300 p-3">Nama</th>
+                                <th class="border border-gray-300 p-3">Nama Ibu</th>
                                 <th class="border border-gray-300 p-3">Nama Anak</th>
                                 <th class="border border-gray-300 p-3">Usia Anak</th>
                                 <th class="border border-gray-300 p-3">Jenis Kelamin Anak</th>
@@ -346,7 +351,7 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-black mb-1">Nama</label>
+                        <label class="block text-sm font-semibold text-black mb-1">Nama Ibu</label>
                         <div class="w-full p-3 bg-white border border-gray-200 rounded-xl shadow-sm">
                             <p class="text-black" id="detail_nama">-</p>
                         </div>

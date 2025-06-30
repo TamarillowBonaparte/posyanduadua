@@ -9,6 +9,8 @@ use App\Models\JadwalImunisasi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
+use App\Exports\ImunisasiExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ImunisasiController extends Controller
 {
@@ -123,13 +125,31 @@ class ImunisasiController extends Controller
             $dataAnak = Anak::all();
             $jenisImunisasi = JenisImunisasi::all();
             
-            return response()->json([
-                'imunisasi' => $imunisasi,
+            // Format data tanggal untuk input HTML
+            $imunisasi->tanggal = optional($imunisasi->tanggal)->format('Y-m-d');
+            
+            // Convert ID ke integer untuk mempermudah perbandingan di JavaScript
+            $formattedData = [
+                'imunisasi' => [
+                    'id' => (int)$imunisasi->id,
+                    'anak_id' => (int)$imunisasi->anak_id,
+                    'jenis_id' => (int)$imunisasi->jenis_id,
+                    'tanggal' => $imunisasi->tanggal,
+                    'status' => $imunisasi->status,
+                ],
                 'anak' => $imunisasi->anak,
                 'jenisImunisasi' => $imunisasi->jenisImunisasi,
-                'dataAnak' => $dataAnak,
-                'jenisImunisasiList' => $jenisImunisasi
-            ]);
+                'dataAnak' => $dataAnak->map(function($anak) {
+                    $anak->id = (int)$anak->id;
+                    return $anak;
+                }),
+                'jenisImunisasiList' => $jenisImunisasi->map(function($jenis) {
+                    $jenis->id = (int)$jenis->id;
+                    return $jenis;
+                })
+            ];
+            
+            return response()->json($formattedData);
         }
         
         $dataAnak = Anak::all();
@@ -318,5 +338,10 @@ class ImunisasiController extends Controller
         
         return redirect()->route('imunisasi.index')
             ->with('success', 'Anak berhasil didaftarkan untuk imunisasi!');
+    }
+
+    public function excel()
+    {
+        return Excel::download(new ImunisasiExport, 'data-imunisasi.xlsx');
     }
 }

@@ -9,6 +9,8 @@ use App\Models\JadwalVitamin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
+use App\Exports\VitaminExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class VitaminController extends Controller
 {
@@ -123,13 +125,31 @@ class VitaminController extends Controller
             $dataAnak = Anak::all();
             $jenisVitamin = JenisVitamin::all();
             
-            return response()->json([
-                'vitamin' => $vitamin,
+            // Format data tanggal untuk input HTML
+            $vitamin->tanggal = Carbon::parse($vitamin->tanggal)->format('Y-m-d');
+            
+            // Convert ID ke integer untuk mempermudah perbandingan di JavaScript
+            $formattedData = [
+                'vitamin' => [
+                    'id' => (int)$vitamin->id,
+                    'anak_id' => (int)$vitamin->anak_id,
+                    'jenis_id' => (int)$vitamin->jenis_id,
+                    'tanggal' => $vitamin->tanggal,
+                    'status' => $vitamin->status,
+                ],
                 'anak' => $vitamin->anak,
                 'jenisVitamin' => $vitamin->jenisVitamin,
-                'dataAnak' => $dataAnak,
-                'jenisVitaminList' => $jenisVitamin
-            ]);
+                'dataAnak' => $dataAnak->map(function($anak) {
+                    $anak->id = (int)$anak->id;
+                    return $anak;
+                }),
+                'jenisVitaminList' => $jenisVitamin->map(function($jenis) {
+                    $jenis->id = (int)$jenis->id;
+                    return $jenis;
+                })
+            ];
+            
+            return response()->json($formattedData);
         }
         
         $dataAnak = Anak::all();
@@ -318,5 +338,10 @@ class VitaminController extends Controller
         
         return redirect()->route('vitamin.index')
             ->with('success', 'Anak berhasil didaftarkan untuk vitamin!');
+    }
+
+    public function excel()
+    {
+        return Excel::download(new VitaminExport, 'data-vitamin.xlsx');
     }
 }

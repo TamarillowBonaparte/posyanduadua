@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Anak;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use App\Exports\AnakExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DataAnakController extends Controller
 {
@@ -144,5 +146,10 @@ class DataAnakController extends Controller
 
         return redirect()->route('anak.index')
             ->with('success', 'Data anak berhasil dihapus!');
+    }
+
+    public function excel()
+    {
+        return Excel::download(new AnakExport, 'data-anak.xlsx');
     }
 }

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
+use App\Services\PerkembanganAnakCalculator;
 
 class PerkembanganAnak extends Model
 {
@@ -19,6 +20,8 @@ class PerkembanganAnak extends Model
         'tanggal',
         'berat_badan',
         'tinggi_badan',
+        'status_berat_badan',
+        'status_tinggi_badan',
         'updated_from_id',
         'is_updated',
         'updated_by_id'
@@ -31,7 +34,18 @@ class PerkembanganAnak extends Model
         'is_updated' => 'boolean'
     ];
 
-    // Validasi saat menyimpan
+    // Konstanta untuk status
+    const STATUS_SANGAT_KURANG = 'Sangat Kurang';
+    const STATUS_KURANG = 'Kurang';
+    const STATUS_RESIKO_KURANG = 'Resiko Kurang';
+    const STATUS_NORMAL = 'Normal';
+    const STATUS_RESIKO_LEBIH = 'Resiko Lebih';
+    const STATUS_LEBIH = 'Lebih';
+    const STATUS_SANGAT_LEBIH = 'Sangat Lebih';
+
+    /**
+     * Boot method untuk menghitung status sebelum menyimpan
+     */
     protected static function boot()
     {
         parent::boot();
@@ -46,6 +60,18 @@ class PerkembanganAnak extends Model
             if ($model->tinggi_badan <= 0) {
                 throw new \Exception('Tinggi badan harus lebih dari 0');
             }
+
+            // Hitung status saat membuat record baru
+            $model->hitungStatus();
+        });
+
+        static::updating(function ($model) {
+            // Hitung ulang status saat mengupdate record
+            $model->hitungStatus();
+        });
+
+        static::saving(function ($model) {
+            $model->hitungStatus();
         });
     }
 
@@ -63,23 +89,34 @@ class PerkembanganAnak extends Model
     public function getStatusPertumbuhan()
     {
         return [
-            'status_bb' => $this->hitungStatusBB(),
-            'status_tb' => $this->hitungStatusTB(),
+            'status_bb' => $this->status_berat_badan,
+            'status_tb' => $this->status_tinggi_badan,
         ];
     }
 
-    private function hitungStatusBB()
+    /**
+     * Menghitung status tinggi badan dan berat badan berdasarkan usia
+     */
+    public function hitungStatus()
     {
-        // TODO: Implementasi perhitungan status berat badan
-        // Sesuaikan dengan standar WHO atau standar lokal
-        return 'Normal'; // Placeholder
-    }
+        $calculator = new PerkembanganAnakCalculator();
+        
+        // Hitung usia dalam bulan
+        $tanggalLahir = Carbon::parse($this->anak->tanggal_lahir);
+        $tanggalPemeriksaan = Carbon::parse($this->tanggal);
+        $usiaBulan = $tanggalLahir->diffInMonths($tanggalPemeriksaan);
 
-    private function hitungStatusTB()
-    {
-        // TODO: Implementasi perhitungan status tinggi badan
-        // Sesuaikan dengan standar WHO atau standar lokal
-        return 'Normal'; // Placeholder
+        // Hitung status tinggi badan
+        if ($this->tinggi_badan) {
+            $this->status_tinggi_badan = $calculator->hitungStatusTinggiBadan($usiaBulan, $this->tinggi_badan);
+        }
+
+        // Hitung status berat badan
+        if ($this->berat_badan) {
+            $this->status_berat_badan = $calculator->hitungStatusBeratBadan($usiaBulan, $this->berat_badan);
+        }
+
+        return $this;
     }
 
     // Relationships

@@ -46,4 +46,12 @@ class Anak extends Model
     {
         return $this->hasMany(PerkembanganAnak::class, 'anak_id');
     }
+
+    /**
+     * Get the stunting records for the anak.
+     */
+    public function stunting()
+    {
+        return $this->hasMany(Stunting::class, 'anak_id');
+    }
 } 

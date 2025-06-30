@@ -138,7 +138,12 @@
             <div class="bg-white/60 p-6 rounded-xl border border-white/40">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 my-4">
                     <div class="flex gap-2">
-                        <a href="#" class="bg-gradient-to-r from-blue-500 to-blue-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition">Cetak</a>
+                        <a href="{{ route('imunisasi.excel') }}" class="bg-gradient-to-r from-green-500 to-green-400 text-white px-5 py-2 rounded-xl shadow hover:opacity-90 transition flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            Unduh Excel
+                        </a>
                     </div>
                     <form action="{{ route('imunisasi.index') }}" method="GET" class="flex-grow md:max-w-xs">
                         <div class="flex">
@@ -293,7 +298,7 @@
                                             <button onclick="fetchImunisasiDetail({{ $i->id }})" class="bg-blue-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Detail</button>
                                             <button onclick="fetchImunisasiEdit({{ $i->id }})" class="bg-yellow-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Edit</button>
                                             @if($i->status == 'Belum')
-                                            <button onclick="updateStatusImunisasi({{ $i->id }}, 'Selesai Sesuai')" class="bg-green-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Selesai</button>
+                                            <button onclick="showStatusOptions({{ $i->id }})" class="bg-green-500 text-white px-3 py-1 rounded-lg text-xs shadow hover:opacity-90 transition">Selesai</button>
                                             @endif
                                             <form action="{{ route('imunisasi.destroy', $i->id) }}" method="POST" class="inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data ini?');">
                                                 @csrf
@@ -434,6 +439,27 @@
                 </form>
             </div>
         </div>
+
+        <!-- Status Options Modal -->
+        <div id="statusOptionsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex justify-center items-center z-50">
+            <div class="bg-[#d2e8e1] backdrop-blur-md p-6 rounded-2xl shadow-xl max-w-md w-full mx-auto border border-white/40">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-black">Pilih Status Imunisasi</h3>
+                    <button onclick="closeStatusModal()" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4 text-center">
+                    <p class="mb-6 text-gray-700">Pilih status imunisasi yang sesuai:</p>
+                    <div class="flex justify-center gap-4">
+                        <button id="btnSelesaiSesuai" onclick="updateStatusImunisasi(this.dataset.id, 'Selesai Sesuai')" class="bg-green-500 text-white px-6 py-3 rounded-xl font-semibold shadow hover:opacity-90 transition">Selesai Sesuai</button>
+                        <button id="btnSelesaiTidakSesuai" onclick="updateStatusImunisasi(this.dataset.id, 'Selesai Tidak Sesuai')" class="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold shadow hover:opacity-90 transition">Selesai Tidak Sesuai</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     @endif
 </div>
 
@@ -543,17 +569,21 @@ function fetchImunisasiEdit(id) {
     // Fetch data
     fetch(`{{ url('/imunisasi') }}/${id}/edit`, {
         headers: {
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
         }
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Edit data received:', data); // Log untuk debugging
+        
         // Set form action
         document.getElementById('editForm').action = `{{ url('/imunisasi') }}/${id}`;
         
         // Clear existing options except the first one (placeholder)
         const anakSelect = document.getElementById('edit_anak_id');
         const jenisSelect = document.getElementById('edit_jenis_id');
+        const statusSelect = document.getElementById('edit_status');
         
         // Keep only the first option
         anakSelect.innerHTML = '<option value="">-Pilih Anak-</option>';
@@ -565,7 +595,7 @@ function fetchImunisasiEdit(id) {
                 const option = document.createElement('option');
                 option.value = anak.id;
                 option.textContent = anak.nama_anak;
-                if (anak.id === data.imunisasi.anak_id) {
+                if (Number(anak.id) === Number(data.imunisasi.anak_id)) {
                     option.selected = true;
                 }
                 anakSelect.appendChild(option);
@@ -578,16 +608,30 @@ function fetchImunisasiEdit(id) {
                 const option = document.createElement('option');
                 option.value = jenis.id;
                 option.textContent = jenis.nama;
-                if (jenis.id === data.imunisasi.jenis_id) {
+                if (Number(jenis.id) === Number(data.imunisasi.jenis_id)) {
                     option.selected = true;
                 }
                 jenisSelect.appendChild(option);
             });
         }
         
-        // Set other form values
-        document.getElementById('edit_tanggal').value = data.imunisasi.tanggal;
-        document.getElementById('edit_status').value = data.imunisasi.status;
+        // Set tanggal
+        let tanggalValue = '';
+        if (data.imunisasi.tanggal) {
+            // Coba parse tanggal dan format untuk input date HTML (YYYY-MM-DD)
+            try {
+                const tanggalParts = data.imunisasi.tanggal.split('T')[0];
+                tanggalValue = tanggalParts;
+                console.log('Tanggal value:', tanggalValue);
+            } catch (e) {
+                console.error('Error parsing tanggal:', e);
+            }
+        }
+        document.getElementById('edit_tanggal').value = tanggalValue;
+        
+        // Set status
+        statusSelect.value = data.imunisasi.status;
+        console.log('Status value set to:', data.imunisasi.status);
         
         // Set up form submission handler
         document.getElementById('editForm').onsubmit = function(e) {
@@ -823,6 +867,8 @@ function updateStatusImunisasi(id, status) {
         return;
     }
     
+    closeStatusModal();
+    
     fetch(`{{ url('/imunisasi') }}/${id}`, {
         method: 'PUT',
         headers: {
@@ -849,6 +895,40 @@ function updateStatusImunisasi(id, status) {
         alert('Gagal memperbarui status imunisasi. Silakan coba lagi.');
     });
 }
+
+function showStatusOptions(id) {
+    // Set ID pada tombol-tombol di modal
+    document.getElementById('btnSelesaiSesuai').dataset.id = id;
+    document.getElementById('btnSelesaiTidakSesuai').dataset.id = id;
+    
+    // Tampilkan modal
+    document.getElementById('statusOptionsModal').classList.remove('hidden');
+    document.getElementById('statusOptionsModal').classList.add('flex');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeStatusModal() {
+    document.getElementById('statusOptionsModal').classList.add('hidden');
+    document.getElementById('statusOptionsModal').classList.remove('flex');
+    document.body.style.overflow = '';
+}
+
+// Close status modal when clicking outside
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('statusOptionsModal');
+    if (event.target === modal) {
+        closeStatusModal();
+    }
+});
+
+// Close status modal with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        if (!document.getElementById('statusOptionsModal').classList.contains('hidden')) {
+            closeStatusModal();
+        }
+    }
+});
 </script>
 @endif
 
